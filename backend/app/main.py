@@ -1,5 +1,10 @@
 from fastapi import FastAPI
 
+from app.database import Base, engine
+from app.models.production_order import ProductionOrder
+
+Base.metadata.create_all(bind=engine)
+
 app = FastAPI(
     title="ERP Integration Platform API",
     description="Backend API for ERP integration, ETL workflows and manufacturing data.",
