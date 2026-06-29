@@ -11,6 +11,7 @@ from app.api.admin import router as admin_router
 from app.api.auth import router as auth_router
 from app.api.audit import router as audit_router
 from app.api.departments import router as departments_router
+from app.api.reports import router as reports_router
 
 Base.metadata.create_all(bind=engine)
 
@@ -39,6 +40,8 @@ app.include_router(admin_router)
 app.include_router(audit_router)
 
 app.include_router(departments_router)
+
+app.include_router(reports_router)
 
 @app.get("/health", tags=["Health Check"])
 def health_check():
