@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -11,6 +11,7 @@ from app.services.auth import (
     hash_password,
     verify_password,
 )
+from app.services.audit import get_client_ip, log_action
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -49,16 +50,19 @@ class MeResponse(BaseModel):
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(payload: LoginRequest, db: Session = Depends(get_db)):
+def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)):
     """Authenticate user and return JWT access token."""
     user = db.query(User).filter(User.username == payload.username).first()
     if not user or not user.password_hash:
+        log_action(db, "LOGIN_FAILED", "auth", detail={"username": payload.username, "reason": "not found"}, ip_address=get_client_ip(request))
         raise HTTPException(status_code=401, detail="Invalid username or password")
     if not verify_password(payload.password, user.password_hash):
+        log_action(db, "LOGIN_FAILED", "auth", user_id=user.id, username=user.username, detail={"reason": "bad password"}, ip_address=get_client_ip(request))
         raise HTTPException(status_code=401, detail="Invalid username or password")
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Account is disabled")
 
+    log_action(db, "LOGIN", "auth", user_id=user.id, username=user.username, ip_address=get_client_ip(request))
     token = create_access_token(user.id, user.username)
     return TokenResponse(
         access_token=token,
@@ -69,7 +73,7 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/register", response_model=TokenResponse, status_code=201)
-def register(payload: RegisterRequest, db: Session = Depends(get_db)):
+def register(payload: RegisterRequest, request: Request, db: Session = Depends(get_db)):
     """Register a new user account."""
     if db.query(User).filter(User.username == payload.username).first():
         raise HTTPException(status_code=409, detail="Username already taken")
@@ -87,6 +91,7 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user)
 
+    log_action(db, "REGISTER", "user", resource_id=user.id, username=user.username, user_id=user.id, ip_address=get_client_ip(request))
     token = create_access_token(user.id, user.username)
     return TokenResponse(
         access_token=token,
@@ -124,6 +129,7 @@ class PasswordChange(BaseModel):
 @router.put("/profile", response_model=MeResponse)
 def update_profile(
     payload: ProfileUpdate,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -136,6 +142,7 @@ def update_profile(
         current_user.full_name = payload.full_name
     db.commit()
     db.refresh(current_user)
+    log_action(db, "PROFILE_UPDATE", "user", resource_id=current_user.id, user_id=current_user.id, username=current_user.username, ip_address=get_client_ip(request))
     permissions = get_user_permissions(current_user.id, db)
     return MeResponse(
         id=current_user.id,
@@ -151,6 +158,7 @@ def update_profile(
 @router.put("/change-password")
 def change_password(
     payload: PasswordChange,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -161,4 +169,5 @@ def change_password(
         raise HTTPException(status_code=400, detail="Neues Passwort muss mindestens 4 Zeichen lang sein")
     current_user.password_hash = hash_password(payload.new_password)
     db.commit()
+    log_action(db, "PASSWORD_CHANGE", "user", resource_id=current_user.id, user_id=current_user.id, username=current_user.username, ip_address=get_client_ip(request))
     return {"status": "ok", "message": "Passwort erfolgreich geändert"}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AuthGuard } from "@/lib/auth-guard";
+import { AdminGuard } from "@/lib/auth-guard";
 import {
   getDepartments,
   createDepartment,
@@ -47,7 +47,7 @@ export default function AdminPage() {
   };
 
   return (
-    <AuthGuard>
+    <AdminGuard>
     <main className="min-h-screen bg-gray-50 p-8">
       <div className="mb-2 flex items-center justify-between">
         <a href="/" className="text-sm text-blue-600 hover:underline">← Zurück zum Dashboard</a>
@@ -85,7 +85,7 @@ export default function AdminPage() {
         {tab === "Rollenzuweisung" && <UserRolesTab />}
       </div>
     </main>
-    </AuthGuard>
+    </AdminGuard>
   );
 }
 

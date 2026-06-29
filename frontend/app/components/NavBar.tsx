@@ -2,11 +2,27 @@
 
 import { useEffect, useState } from "react";
 import { LogoutButton, UserInfo } from "@/lib/auth-guard";
+import { getMe } from "@/lib/api";
 
 export function NavBar() {
   const [mounted, setMounted] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
-  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => {
+    setMounted(true);
+    // Check if user has admin permissions
+    getMe()
+      .then((data) => {
+        if (data?.permissions) {
+          // User is admin if they have any admin.* permission with view
+          const hasAdmin = Object.keys(data.permissions).some(
+            (key) => key.startsWith("admin.") && data.permissions[key]?.view
+          );
+          setIsAdmin(hasAdmin);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   if (!mounted) return null;
 
@@ -19,12 +35,22 @@ export function NavBar() {
       >
         Mein Profil
       </a>
-      <a
-        href="/admin"
-        className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
-      >
-        Admin Panel
-      </a>
+      {isAdmin && (
+        <>
+          <a
+            href="/admin"
+            className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+          >
+            Admin Panel
+          </a>
+          <a
+            href="/admin/audit"
+            className="rounded-md border border-orange-300 bg-orange-50 px-3 py-2 text-sm font-medium text-orange-700 hover:bg-orange-100"
+          >
+            Audit Log
+          </a>
+        </>
+      )}
       <LogoutButton />
     </div>
   );

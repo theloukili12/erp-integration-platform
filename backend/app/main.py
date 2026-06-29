@@ -4,10 +4,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.database import Base, engine
 from app.models.production_order import ProductionOrder
 from app.models.rbac import Department, Feature, Role, RolePermission, User, UserRole
+from app.models.audit import AuditLog
 from app.api.etl import router as etl_router
 from app.api.orders import router as orders_router
 from app.api.admin import router as admin_router
 from app.api.auth import router as auth_router
+from app.api.audit import router as audit_router
 
 Base.metadata.create_all(bind=engine)
 
@@ -32,6 +34,8 @@ app.include_router(etl_router)
 app.include_router(orders_router)
 
 app.include_router(admin_router)
+
+app.include_router(audit_router)
 
 @app.get("/health", tags=["Health Check"])
 def health_check():

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -30,6 +30,7 @@ from app.schemas.rbac import (
     UserUpdate,
 )
 from app.services.auth import get_user_permissions
+from app.services.audit import get_client_ip, log_action
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -43,18 +44,19 @@ def list_departments(db: Session = Depends(get_db)):
 
 
 @router.post("/departments", response_model=DepartmentRead, status_code=201)
-def create_department(payload: DepartmentCreate, db: Session = Depends(get_db)):
+def create_department(payload: DepartmentCreate, request: Request, db: Session = Depends(get_db)):
     if db.query(Department).filter(Department.name == payload.name).first():
         raise HTTPException(status_code=409, detail="Department already exists")
     dept = Department(**payload.model_dump())
     db.add(dept)
     db.commit()
     db.refresh(dept)
+    log_action(db, "CREATE", "department", resource_id=dept.id, detail={"name": dept.name}, ip_address=get_client_ip(request))
     return dept
 
 
 @router.put("/departments/{department_id}", response_model=DepartmentRead)
-def update_department(department_id: int, payload: DepartmentUpdate, db: Session = Depends(get_db)):
+def update_department(department_id: int, payload: DepartmentUpdate, request: Request, db: Session = Depends(get_db)):
     dept = db.query(Department).filter(Department.id == department_id).first()
     if not dept:
         raise HTTPException(status_code=404, detail="Department not found")
@@ -62,14 +64,16 @@ def update_department(department_id: int, payload: DepartmentUpdate, db: Session
         setattr(dept, key, value)
     db.commit()
     db.refresh(dept)
+    log_action(db, "UPDATE", "department", resource_id=dept.id, detail={"name": dept.name}, ip_address=get_client_ip(request))
     return dept
 
 
 @router.delete("/departments/{department_id}", status_code=204)
-def delete_department(department_id: int, db: Session = Depends(get_db)):
+def delete_department(department_id: int, request: Request, db: Session = Depends(get_db)):
     dept = db.query(Department).filter(Department.id == department_id).first()
     if not dept:
         raise HTTPException(status_code=404, detail="Department not found")
+    log_action(db, "DELETE", "department", resource_id=dept.id, detail={"name": dept.name}, ip_address=get_client_ip(request))
     db.delete(dept)
     db.commit()
 
@@ -83,7 +87,7 @@ def list_users(db: Session = Depends(get_db)):
 
 
 @router.post("/users", response_model=UserRead, status_code=201)
-def create_user(payload: UserCreate, db: Session = Depends(get_db)):
+def create_user(payload: UserCreate, request: Request, db: Session = Depends(get_db)):
     if db.query(User).filter(User.username == payload.username).first():
         raise HTTPException(status_code=409, detail="Username already taken")
     if db.query(User).filter(User.email == payload.email).first():
@@ -99,11 +103,12 @@ def create_user(payload: UserCreate, db: Session = Depends(get_db)):
     db.add(user)
     db.commit()
     db.refresh(user)
+    log_action(db, "CREATE", "user", resource_id=user.id, detail={"username": user.username}, ip_address=get_client_ip(request))
     return user
 
 
 @router.put("/users/{user_id}", response_model=UserRead)
-def update_user(user_id: int, payload: UserUpdate, db: Session = Depends(get_db)):
+def update_user(user_id: int, payload: UserUpdate, request: Request, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -116,14 +121,16 @@ def update_user(user_id: int, payload: UserUpdate, db: Session = Depends(get_db)
             setattr(user, key, value)
     db.commit()
     db.refresh(user)
+    log_action(db, "UPDATE", "user", resource_id=user.id, detail={"username": user.username}, ip_address=get_client_ip(request))
     return user
 
 
 @router.delete("/users/{user_id}", status_code=204)
-def delete_user(user_id: int, db: Session = Depends(get_db)):
+def delete_user(user_id: int, request: Request, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    log_action(db, "DELETE", "user", resource_id=user.id, detail={"username": user.username}, ip_address=get_client_ip(request))
     db.delete(user)
     db.commit()
 
@@ -145,18 +152,19 @@ def list_roles(db: Session = Depends(get_db)):
 
 
 @router.post("/roles", response_model=RoleRead, status_code=201)
-def create_role(payload: RoleCreate, db: Session = Depends(get_db)):
+def create_role(payload: RoleCreate, request: Request, db: Session = Depends(get_db)):
     if db.query(Role).filter(Role.name == payload.name).first():
         raise HTTPException(status_code=409, detail="Role already exists")
     role = Role(**payload.model_dump())
     db.add(role)
     db.commit()
     db.refresh(role)
+    log_action(db, "CREATE", "role", resource_id=role.id, detail={"name": role.name}, ip_address=get_client_ip(request))
     return role
 
 
 @router.put("/roles/{role_id}", response_model=RoleRead)
-def update_role(role_id: int, payload: RoleUpdate, db: Session = Depends(get_db)):
+def update_role(role_id: int, payload: RoleUpdate, request: Request, db: Session = Depends(get_db)):
     role = db.query(Role).filter(Role.id == role_id).first()
     if not role:
         raise HTTPException(status_code=404, detail="Role not found")
@@ -166,16 +174,18 @@ def update_role(role_id: int, payload: RoleUpdate, db: Session = Depends(get_db)
         setattr(role, key, value)
     db.commit()
     db.refresh(role)
+    log_action(db, "UPDATE", "role", resource_id=role.id, detail={"name": role.name}, ip_address=get_client_ip(request))
     return role
 
 
 @router.delete("/roles/{role_id}", status_code=204)
-def delete_role(role_id: int, db: Session = Depends(get_db)):
+def delete_role(role_id: int, request: Request, db: Session = Depends(get_db)):
     role = db.query(Role).filter(Role.id == role_id).first()
     if not role:
         raise HTTPException(status_code=404, detail="Role not found")
     if role.is_system_role:
         raise HTTPException(status_code=403, detail="System roles cannot be deleted")
+    log_action(db, "DELETE", "role", resource_id=role.id, detail={"name": role.name}, ip_address=get_client_ip(request))
     db.delete(role)
     db.commit()
 
@@ -232,7 +242,7 @@ def get_role_permissions(role_id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/roles/{role_id}/permissions")
-def set_role_permissions(role_id: int, permissions: list[RolePermissionSet], db: Session = Depends(get_db)):
+def set_role_permissions(role_id: int, permissions: list[RolePermissionSet], request: Request, db: Session = Depends(get_db)):
     """Bulk-set permissions for a role. Replaces all existing permissions."""
     role = db.query(Role).filter(Role.id == role_id).first()
     if not role:
@@ -259,6 +269,7 @@ def set_role_permissions(role_id: int, permissions: list[RolePermissionSet], db:
         ))
 
     db.commit()
+    log_action(db, "UPDATE", "role_permissions", resource_id=role_id, detail={"role": role.name, "count": len(permissions)}, ip_address=get_client_ip(request))
     return {"status": "ok"}
 
 
@@ -277,7 +288,7 @@ def list_user_roles(
 
 
 @router.post("/user-roles", response_model=UserRoleRead, status_code=201)
-def assign_user_role(payload: UserRoleAssign, db: Session = Depends(get_db)):
+def assign_user_role(payload: UserRoleAssign, request: Request, db: Session = Depends(get_db)):
     if not db.query(User).filter(User.id == payload.user_id).first():
         raise HTTPException(status_code=404, detail="User not found")
     if not db.query(Role).filter(Role.id == payload.role_id).first():
@@ -301,14 +312,16 @@ def assign_user_role(payload: UserRoleAssign, db: Session = Depends(get_db)):
     db.add(ur)
     db.commit()
     db.refresh(ur)
+    log_action(db, "ASSIGN_ROLE", "user_role", resource_id=ur.id, detail={"user_id": payload.user_id, "role_id": payload.role_id}, ip_address=get_client_ip(request))
     return ur
 
 
 @router.delete("/user-roles/{user_role_id}", status_code=204)
-def remove_user_role(user_role_id: int, db: Session = Depends(get_db)):
+def remove_user_role(user_role_id: int, request: Request, db: Session = Depends(get_db)):
     ur = db.query(UserRole).filter(UserRole.id == user_role_id).first()
     if not ur:
         raise HTTPException(status_code=404, detail="User role not found")
+    log_action(db, "REMOVE_ROLE", "user_role", resource_id=ur.id, detail={"user_id": ur.user_id, "role_id": ur.role_id}, ip_address=get_client_ip(request))
     db.delete(ur)
     db.commit()
 
