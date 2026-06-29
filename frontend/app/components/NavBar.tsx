@@ -35,6 +35,12 @@ export function NavBar() {
       >
         Mein Profil
       </a>
+      <a
+        href="/departments"
+        className="rounded-md border border-blue-300 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"
+      >
+        Abteilungen
+      </a>
       {isAdmin && (
         <>
           <a
