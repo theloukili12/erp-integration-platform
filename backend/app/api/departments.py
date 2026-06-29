@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.audit import AuditLog
+from app.models.production_order import ProductionOrder
 from app.models.rbac import Department, Role, User, UserRole
 
 router = APIRouter(prefix="/departments", tags=["Departments"])
@@ -104,6 +105,20 @@ def get_department_dashboard(department_id: int, db: Session = Depends(get_db)):
         for (role_name,) in user_roles:
             role_distribution[role_name] = role_distribution.get(role_name, 0) + 1
 
+    # Order KPIs for this department
+    from datetime import datetime
+    dept_orders = db.query(ProductionOrder).filter(ProductionOrder.department_id == department_id)
+    total_orders = dept_orders.count()
+    orders_by_status = dict(
+        dept_orders.with_entities(ProductionOrder.status, func.count(ProductionOrder.id))
+        .group_by(ProductionOrder.status)
+        .all()
+    )
+    overdue_orders = dept_orders.filter(
+        ProductionOrder.due_date < datetime.utcnow(),
+        ProductionOrder.status.notin_(["ABGESCHLOSSEN", "FEHLGESCHLAGEN"]),
+    ).count()
+
     return {
         "department": {
             "id": dept.id,
@@ -116,6 +131,11 @@ def get_department_dashboard(department_id: int, db: Session = Depends(get_db)):
             "active_members": active_members,
             "inactive_members": inactive_members,
             "role_distribution": role_distribution,
+        },
+        "orders": {
+            "total": total_orders,
+            "by_status": orders_by_status,
+            "overdue": overdue_orders,
         },
         "team": team,
         "recent_activity": recent_activity,

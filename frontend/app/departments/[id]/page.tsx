@@ -174,9 +174,24 @@ export default function DepartmentDashboardPage() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <KpiCard label="Mitglieder" value={dashboard.kpis.total_members} color="blue" />
                 <KpiCard label="Aktiv" value={dashboard.kpis.active_members} color="green" />
-                <KpiCard label="Inaktiv" value={dashboard.kpis.inactive_members} color="red" />
-                <KpiCard label="Aktionen" value={reports?.total_actions || 0} color="purple" />
+                <KpiCard label="Aufträge" value={(dashboard as any).orders?.total || 0} color="purple" />
+                <KpiCard label="Überfällig" value={(dashboard as any).orders?.overdue || 0} color="red" />
               </div>
+
+              {/* Order Status Breakdown */}
+              {(dashboard as any).orders?.total > 0 && (
+                <div className="bg-white rounded-xl shadow-sm p-6">
+                  <h3 className="font-semibold text-gray-900 mb-4">Aufträge nach Status</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                    {Object.entries((dashboard as any).orders.by_status || {}).map(([status, count]) => (
+                      <div key={status} className="text-center p-3 rounded-lg bg-gray-50">
+                        <div className="text-xl font-bold text-gray-900">{count as number}</div>
+                        <div className="text-xs text-gray-500">{status}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Role Distribution + Top Users */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

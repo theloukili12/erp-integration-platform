@@ -36,6 +36,12 @@ export function NavBar() {
         Mein Profil
       </a>
       <a
+        href="/orders"
+        className="rounded-md border border-green-300 bg-green-50 px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-100"
+      >
+        Aufträge
+      </a>
+      <a
         href="/departments"
         className="rounded-md border border-blue-300 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"
       >
