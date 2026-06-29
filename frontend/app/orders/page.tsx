@@ -276,7 +276,9 @@ export default function OrdersPage() {
                   <tbody className="divide-y divide-gray-100">
                     {orders.map((order) => (
                       <tr key={order.id} className={`hover:bg-gray-50 ${isOverdue(order) ? "bg-red-50" : ""}`}>
-                        <td className="px-4 py-3 font-medium text-gray-900">{order.order_number}</td>
+                        <td className="px-4 py-3 font-medium">
+                          <a href={`/orders/${order.id}`} className="text-blue-600 hover:underline">{order.order_number}</a>
+                        </td>
                         <td className="px-4 py-3 text-gray-700">{order.article}</td>
                         <td className="px-4 py-3 text-gray-700">{order.quantity}</td>
                         <td className="px-4 py-3">

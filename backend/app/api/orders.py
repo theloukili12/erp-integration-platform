@@ -4,6 +4,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.models.audit import AuditLog
 from app.models.production_order import ProductionOrder, STATUS_WORKFLOW, PRIORITY_LEVELS
 from app.models.rbac import Department, User
 from app.services.audit import get_client_ip, log_action
@@ -136,6 +137,25 @@ def get_order(order_id: int, db: Session = Depends(get_db)):
         user = db.query(User).filter(User.id == order.assigned_to).first()
         assignee_name = user.full_name if user else None
 
+    # Audit history for this order
+    history = (
+        db.query(AuditLog)
+        .filter(AuditLog.resource == "order", AuditLog.resource_id == order_id)
+        .order_by(AuditLog.created_at.desc())
+        .all()
+    )
+    audit_history = [
+        {
+            "id": h.id,
+            "action": h.action,
+            "username": h.username,
+            "detail": h.detail,
+            "ip_address": h.ip_address,
+            "created_at": h.created_at.isoformat() if h.created_at else None,
+        }
+        for h in history
+    ]
+
     return {
         "id": order.id,
         "order_number": order.order_number,
@@ -152,6 +172,7 @@ def get_order(order_id: int, db: Session = Depends(get_db)):
         "created_at": order.created_at.isoformat() if order.created_at else None,
         "updated_at": order.updated_at.isoformat() if order.updated_at else None,
         "allowed_transitions": STATUS_WORKFLOW.get(order.status, []),
+        "history": audit_history,
     }
 
 
@@ -245,3 +266,28 @@ def delete_order(order_id: int, request: Request, db: Session = Depends(get_db))
     log_action(db, "DELETE", "order", resource_id=order.id, detail={"order_number": order.order_number}, ip_address=get_client_ip(request))
     db.delete(order)
     db.commit()
+
+
+class CommentPayload(BaseModel):
+    comment: str
+
+
+@router.post("/orders/{order_id}/comment")
+def add_comment(order_id: int, payload: CommentPayload, request: Request, db: Session = Depends(get_db)):
+    """Add a comment/note to an order."""
+    order = db.query(ProductionOrder).filter(ProductionOrder.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    from datetime import datetime
+    timestamp = datetime.utcnow().strftime("%d.%m.%Y %H:%M")
+    existing = order.notes or ""
+    order.notes = f"{existing}\n[{timestamp}] {payload.comment}".strip()
+    db.commit()
+    log_action(
+        db, "COMMENT", "order",
+        resource_id=order.id,
+        detail={"order_number": order.order_number, "comment": payload.comment},
+        ip_address=get_client_ip(request),
+    )
+    return {"status": "ok", "notes": order.notes}
