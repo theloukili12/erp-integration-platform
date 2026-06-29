@@ -1,8 +1,8 @@
 # 🏭 ERP Integration Platform
 
-A modern manufacturing integration platform for ERP data processing, ETL workflows, REST APIs, and KPI dashboard visualization.
+A modern manufacturing integration platform for ERP data processing, ETL workflows, REST APIs, role-based access control (RBAC), and KPI dashboard visualization.
 
-Built with **FastAPI**, **PostgreSQL**, **Next.js**, and **Docker**.
+Built with **FastAPI**, **PostgreSQL**, **Next.js**, **Docker**, and a full **RBAC admin panel**.
 
 ---
 
@@ -15,9 +15,9 @@ Built with **FastAPI**, **PostgreSQL**, **Next.js**, and **Docker**.
 | **SQLAlchemy**     | ORM for database access            |
 | **Pydantic**       | Validation & DTO schemas           |
 | **Pandas / NumPy** | ETL workflows & data processing    |
-| **Docker Compose** | PostgreSQL container orchestration |
+| **Docker Compose** | Full-stack container orchestration  |
 | **Uvicorn**        | ASGI application server            |
-| **Next.js 15**     | Frontend dashboard                 |
+| **Next.js 16**     | Frontend dashboard & admin panel   |
 | **TypeScript**     | Type-safe frontend development     |
 | **Tailwind CSS**   | Dashboard UI styling               |
 
@@ -35,11 +35,11 @@ HTTP Request
 ┌─────────────┐
 │ API Layer   │  FastAPI routes & endpoints
 ├─────────────┤
+│ Auth/RBAC   │  Permission middleware (require_permission)
+├─────────────┤
 │ Schemas     │  Pydantic validation models
 ├─────────────┤
 │ Services    │  Business logic & ETL workflows
-├─────────────┤
-│ Repositories│  Database access layer
 ├─────────────┤
 │ Models      │  SQLAlchemy ORM models
 ├─────────────┤
@@ -75,25 +75,38 @@ erp-integration-platform/
 ├── backend/
 │   ├── app/
 │   │   ├── api/              # FastAPI route definitions
-│   │   ├── models/           # SQLAlchemy ORM models
-│   │   ├── repositories/     # Database access layer
-│   │   ├── schemas/          # Pydantic DTO schemas
-│   │   ├── services/         # Business logic & ETL workflows
+│   │   │   ├── admin.py      # RBAC admin panel API (CRUD for all entities)
+│   │   │   ├── etl.py        # ETL import endpoint
+│   │   │   └── orders.py     # Production order endpoints
+│   │   ├── models/
+│   │   │   ├── rbac.py       # Department, User, Role, Feature, RolePermission, UserRole
+│   │   │   └── production_order.py
+│   │   ├── schemas/
+│   │   │   ├── rbac.py       # Pydantic schemas for RBAC
+│   │   │   └── production_order.py
+│   │   ├── services/
+│   │   │   ├── auth.py       # Permission middleware (require_permission)
+│   │   │   ├── seed.py       # Default roles, features & permission matrix
+│   │   │   ├── etl_service.py
+│   │   │   └── validators.py
 │   │   ├── database.py       # Database engine & sessions
 │   │   └── main.py           # FastAPI application entry point
 │   │
-│   ├── requirements.txt
-│   └── .env
+│   ├── Dockerfile
+│   └── requirements.txt
 │
 ├── frontend/
-│   ├── app/                  # Next.js App Router
-│   ├── lib/                  # API communication layer
+│   ├── app/
+│   │   ├── admin/page.tsx    # Admin panel (5 tabs)
+│   │   ├── page.tsx          # KPI dashboard
+│   │   └── layout.tsx
+│   ├── lib/api.ts            # API communication layer
+│   ├── Dockerfile
 │   └── package.json
 │
 ├── data/                     # ERP CSV export files
-├── docs/                     # Project screenshots
-├── docker-compose.yml
-├── .gitignore
+├── docs/                     # Project documentation
+├── docker-compose.yml        # Full-stack orchestration
 └── README.md
 ```
 
@@ -103,7 +116,7 @@ erp-integration-platform/
 
 ## Backend
 
-* REST API development with FastAPI
+* REST API with FastAPI
 * PostgreSQL integration
 * SQLAlchemy ORM
 * Pydantic validation schemas
@@ -111,6 +124,20 @@ erp-integration-platform/
 * Filtering & pagination
 * Health check endpoint
 * Swagger/OpenAPI documentation
+* CORS middleware
+
+---
+
+## RBAC (Role-Based Access Control)
+
+* **Departments** — organizational units (Produktion, Logistik, IT, etc.)
+* **Users** — employees with department assignment
+* **Roles** — permission bundles (Administrator, Manager, Mitarbeiter, Viewer + custom)
+* **Features** — platform modules with granular actions
+* **Permission Matrix** — configurable per role: view, create, edit, delete, export
+* **User-Role Assignment** — global or department-scoped
+* **Permission Middleware** — `require_permission("feature", "action")` decorator
+* **Seed Data** — pre-configured default roles & feature permissions
 
 ---
 
@@ -124,14 +151,17 @@ erp-integration-platform/
 
 ---
 
-## Frontend Dashboard
+## Frontend
 
 * Manufacturing KPI dashboard
 * Production order visualization
-* Responsive layout
-* FastAPI integration
-* KPI cards
-* Production order table
+* **Admin Panel** with 5 tabs:
+  * Abteilungen (Departments)
+  * Benutzer (Users)
+  * Rollen (Roles)
+  * Berechtigungsmatrix (Permission Matrix)
+  * Rollenzuweisung (Role Assignment)
+* Responsive layout with Tailwind CSS
 
 ---
 
@@ -139,9 +169,8 @@ erp-integration-platform/
 
 ## Prerequisites
 
-* Python 3.10+
-* Node.js 20+
-* Docker & Docker Compose
+* Docker & Docker Compose (recommended)
+* Or: Python 3.10+ and Node.js 20+ for local development
 
 ---
 
@@ -154,92 +183,70 @@ cd erp-integration-platform
 
 ---
 
-# 2️⃣ Start PostgreSQL Container
+# 2️⃣ Start with Docker (Recommended)
 
 ```bash
-docker compose up -d
+docker compose up --build -d
 ```
 
-PostgreSQL container configuration:
+This starts **all services** (PostgreSQL, Backend, Frontend).
 
-| Setting  | Value        |
-| -------- | ------------ |
-| User     | postgres     |
-| Password | postgres     |
-| Database | erp_platform |
-| Port     | 5432         |
+| Service    | URL                         |
+| ---------- | --------------------------- |
+| Frontend   | http://localhost:3000        |
+| Admin Panel| http://localhost:3000/admin  |
+| Backend API| http://localhost:8000        |
+| Swagger UI | http://localhost:8000/docs   |
 
 ---
 
-# 3️⃣ Backend Setup
+# 3️⃣ Seed Default Data
+
+Load default roles (Administrator, Manager, Mitarbeiter, Viewer), features, and permission matrix:
+
+```bash
+curl -X POST http://localhost:8000/admin/seed
+```
+
+Or click **"Standarddaten laden"** in the Admin Panel.
+
+---
+
+# 4️⃣ Local Development (Alternative)
+
+### Backend
 
 ```bash
 cd backend
-
 python -m venv venv
-
-# Windows
-venv\Scripts\activate
-
-# Linux/macOS
-# source venv/bin/activate
-
+venv\Scripts\activate        # Windows
+# source venv/bin/activate   # Linux/macOS
 pip install -r requirements.txt
 ```
 
----
-
-# 4️⃣ Configure Environment Variables
-
-Create:
-
-```text
-backend/.env
-```
-
-Add:
+Create `backend/.env`:
 
 ```env
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/erp_platform
 ```
 
----
-
-# 5️⃣ Run FastAPI Backend
-
 ```bash
-cd backend
 uvicorn app.main:app --reload
 ```
 
-Backend available at:
-
-| URL                          | Description  |
-| ---------------------------- | ------------ |
-| http://localhost:8000/docs   | Swagger UI   |
-| http://localhost:8000/redoc  | ReDoc        |
-| http://localhost:8000/health | Health check |
-
----
-
-# 6️⃣ Frontend Setup
+### Frontend
 
 ```bash
 cd frontend
-
 npm install
 npm run dev
-```
-
-Frontend available at:
-
-```text
-http://localhost:3000
 ```
 
 ---
 
 # 📡 API Endpoints
+
+## Core
 
 | Method | Endpoint       | Description                |
 | ------ | -------------- | -------------------------- |
@@ -249,18 +256,41 @@ http://localhost:3000
 | GET    | `/orders/{id}` | Get production order by ID |
 | POST   | `/orders`      | Create production order    |
 
+## Admin / RBAC
+
+| Method | Endpoint                          | Description                    |
+| ------ | --------------------------------- | ------------------------------ |
+| POST   | `/admin/seed`                     | Seed default roles & features  |
+| GET    | `/admin/departments`              | List departments               |
+| POST   | `/admin/departments`              | Create department              |
+| PUT    | `/admin/departments/{id}`         | Update department              |
+| DELETE | `/admin/departments/{id}`         | Delete department              |
+| GET    | `/admin/users`                    | List users                     |
+| POST   | `/admin/users`                    | Create user                    |
+| PUT    | `/admin/users/{id}`               | Update user                    |
+| GET    | `/admin/users/{id}/permissions`   | Get effective user permissions |
+| GET    | `/admin/roles`                    | List roles                     |
+| POST   | `/admin/roles`                    | Create custom role             |
+| GET    | `/admin/features`                 | List features/modules          |
+| GET    | `/admin/roles/{id}/permissions`   | Get role permission matrix     |
+| PUT    | `/admin/roles/{id}/permissions`   | Set role permission matrix     |
+| GET    | `/admin/user-roles`               | List user-role assignments     |
+| POST   | `/admin/user-roles`               | Assign role to user            |
+| DELETE | `/admin/user-roles/{id}`          | Remove role from user          |
+
 ---
 
 # 🧠 Engineering Concepts Demonstrated
 
 * ERP integration architecture
-* ETL workflows
+* ETL workflows & data pipelines
 * Layered backend architecture
-* Repository-service pattern
+* Role-Based Access Control (RBAC)
+* Permission middleware pattern
 * REST API design
-* DTO validation
+* DTO validation with Pydantic
 * Frontend/backend separation
-* Containerized infrastructure
+* Full-stack Docker containerization
 * Dashboard KPI visualization
 * Manufacturing systems integration
 
@@ -273,12 +303,16 @@ http://localhost:3000
 * [x] ERP CSV ETL workflow
 * [x] Validation layer
 * [x] Next.js KPI dashboard
-* [ ] Advanced ETL logging
-* [ ] Authentication & authorization
-* [ ] Dockerize frontend/backend
+* [x] Dockerize frontend/backend
+* [x] RBAC system (roles, features, permission matrix)
+* [x] Admin panel UI
+* [x] CORS & API middleware
+* [ ] JWT authentication (login/logout)
+* [ ] Audit logging (who did what, when)
+* [ ] Advanced ETL logging & error tracking
 * [ ] Kubernetes deployment manifests
 * [ ] CI/CD with GitHub Actions
-* [ ] Power BI integration
+* [ ] Power BI / reporting integration
 
 ---
 
