@@ -1,22 +1,97 @@
-from fastapi import Depends, Header, HTTPException
+import os
+from datetime import datetime, timedelta, timezone
+
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
+from jose import JWTError, jwt
+from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.rbac import Feature, RolePermission, User, UserRole
 
+# ── Configuration ────────────────────────────────────────────────────────
+
+SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-production-use-a-random-64-char-string")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "480"))  # 8 hours
+
+# ── Password hashing ────────────────────────────────────────────────────
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+def hash_password(password: str) -> str:
+    return pwd_context.hash(password)
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return pwd_context.verify(plain_password, hashed_password)
+
+
+# ── JWT tokens ───────────────────────────────────────────────────────────
+
+def create_access_token(user_id: int, username: str) -> str:
+    expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    payload = {
+        "sub": str(user_id),
+        "username": username,
+        "exp": expire,
+    }
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+
+# ── OAuth2 scheme ────────────────────────────────────────────────────────
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
+
 
 def get_current_user(
-    x_user_id: int = Header(..., description="ID of the authenticated user"),
+    token: str | None = Depends(oauth2_scheme),
     db: Session = Depends(get_db),
 ) -> User:
-    """
-    Simplified user resolution via header.
-    In production, replace with JWT/OAuth token validation.
-    """
-    user = db.query(User).filter(User.id == x_user_id).first()
+    """Resolve the current user from the JWT Bearer token."""
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = int(payload.get("sub", 0))
+    except (JWTError, ValueError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user = db.query(User).filter(User.id == user_id).first()
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="User not found or inactive")
     return user
+
+
+def get_optional_user(
+    token: str | None = Depends(oauth2_scheme),
+    db: Session = Depends(get_db),
+) -> User | None:
+    """Like get_current_user but returns None instead of raising if no token."""
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = int(payload.get("sub", 0))
+    except (JWTError, ValueError):
+        return None
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user or not user.is_active:
+        return None
+    return user
+
+
+# ── Permission checking ──────────────────────────────────────────────────
 
 
 def require_permission(feature_code: str, action: str):
@@ -32,7 +107,6 @@ def require_permission(feature_code: str, action: str):
         current_user: User = Depends(get_current_user),
         db: Session = Depends(get_db),
     ):
-        # Get all role IDs for this user
         role_ids = [
             ur.role_id
             for ur in db.query(UserRole).filter(UserRole.user_id == current_user.id).all()
@@ -41,13 +115,10 @@ def require_permission(feature_code: str, action: str):
         if not role_ids:
             raise HTTPException(status_code=403, detail="No roles assigned")
 
-        # Find the feature
         feature = db.query(Feature).filter(Feature.code == feature_code).first()
         if not feature:
-            # If feature doesn't exist in DB, deny by default
             raise HTTPException(status_code=403, detail="Access denied")
 
-        # Check if any role grants the requested action
         action_column = f"can_{action}"
         perms = (
             db.query(RolePermission)
@@ -65,6 +136,9 @@ def require_permission(feature_code: str, action: str):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
 
     return checker
+
+
+# ── Utility ──────────────────────────────────────────────────────────────
 
 
 def get_user_permissions(user_id: int, db: Session) -> dict:
@@ -98,7 +172,6 @@ def get_user_permissions(user_id: int, db: Session) -> dict:
                 "delete": False,
                 "export": False,
             }
-        # Merge (OR) permissions from all roles
         if perm.can_view:
             result[code]["view"] = True
         if perm.can_create:

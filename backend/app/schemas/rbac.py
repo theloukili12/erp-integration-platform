@@ -32,6 +32,7 @@ class UserCreate(BaseModel):
     username: str
     email: str
     full_name: str
+    password: str | None = None
     department_id: int | None = None
 
 
@@ -39,6 +40,7 @@ class UserUpdate(BaseModel):
     username: str | None = None
     email: str | None = None
     full_name: str | None = None
+    password: str | None = None
     department_id: int | None = None
     is_active: bool | None = None
 

@@ -7,6 +7,7 @@ from app.models.rbac import Department, Feature, Role, RolePermission, User, Use
 from app.api.etl import router as etl_router
 from app.api.orders import router as orders_router
 from app.api.admin import router as admin_router
+from app.api.auth import router as auth_router
 
 Base.metadata.create_all(bind=engine)
 
@@ -23,6 +24,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(auth_router)
 
 app.include_router(etl_router)
 

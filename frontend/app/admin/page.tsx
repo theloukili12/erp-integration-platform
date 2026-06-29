@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { AuthGuard } from "@/lib/auth-guard";
 import {
   getDepartments,
   createDepartment,
@@ -46,6 +47,7 @@ export default function AdminPage() {
   };
 
   return (
+    <AuthGuard>
     <main className="min-h-screen bg-gray-50 p-8">
       <div className="mb-2 flex items-center justify-between">
         <a href="/" className="text-sm text-blue-600 hover:underline">← Zurück zum Dashboard</a>
@@ -83,6 +85,7 @@ export default function AdminPage() {
         {tab === "Rollenzuweisung" && <UserRolesTab />}
       </div>
     </main>
+    </AuthGuard>
   );
 }
 
@@ -149,6 +152,7 @@ function UsersTab() {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
+  const [password, setPassword] = useState("");
   const [deptId, setDeptId] = useState("");
   const [editId, setEditId] = useState<number | null>(null);
   const [error, setError] = useState("");
@@ -163,10 +167,14 @@ function UsersTab() {
     e.preventDefault();
     setError("");
     try {
-      const data = { username, email, full_name: fullName, department_id: deptId ? Number(deptId) : undefined };
+      const data: Record<string, unknown> = { username, email, full_name: fullName, department_id: deptId ? Number(deptId) : undefined };
+      if (password) data.password = password;
       if (editId) await updateUser(editId, data);
-      else await createUser(data);
-      setUsername(""); setEmail(""); setFullName(""); setDeptId(""); setEditId(null); load();
+      else {
+        if (!password) { setError("Passwort ist erforderlich"); return; }
+        await createUser(data as any);
+      }
+      setUsername(""); setEmail(""); setFullName(""); setPassword(""); setDeptId(""); setEditId(null); load();
     } catch (err: any) { setError(err.message); }
   };
 
@@ -181,6 +189,7 @@ function UsersTab() {
         <Input label="Benutzername" required value={username} onChange={setUsername} />
         <Input label="E-Mail" required type="email" value={email} onChange={setEmail} />
         <Input label="Voller Name" required value={fullName} onChange={setFullName} />
+        <Input label={editId ? "Neues Passwort (optional)" : "Passwort"} type="password" value={password} onChange={setPassword} placeholder={editId ? "Leer = unverändert" : "Initialpasswort"} />
         <div>
           <label className="block text-xs font-medium text-gray-500">Abteilung</label>
           <select value={deptId} onChange={(e) => setDeptId(e.target.value)} className="mt-1 rounded-md border border-gray-300 px-3 py-2 text-sm">
@@ -189,7 +198,7 @@ function UsersTab() {
           </select>
         </div>
         <SubmitBtn editing={!!editId} />
-        {editId && <CancelBtn onClick={() => { setEditId(null); setUsername(""); setEmail(""); setFullName(""); setDeptId(""); }} />}
+        {editId && <CancelBtn onClick={() => { setEditId(null); setUsername(""); setEmail(""); setFullName(""); setPassword(""); setDeptId(""); }} />}
         {error && <p className="w-full text-sm text-red-600">{error}</p>}
       </form>
 
