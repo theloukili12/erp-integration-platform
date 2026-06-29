@@ -9,6 +9,7 @@ import {
   addOrderComment,
   getDepartments,
   getUsers,
+  exportOrderPdfUrl,
 } from "@/lib/api";
 import { AuthGuard } from "@/lib/auth-guard";
 
@@ -157,7 +158,7 @@ export default function OrderDetailPage() {
     });
   };
 
-  const parseDetail = (detail: string | null): Record<string, unknown> | null => {
+  const parseDetail = (detail: string | null): { from?: string; to?: string; comment?: string; article?: string } | null => {
     if (!detail) return null;
     try { return JSON.parse(detail); } catch { return null; }
   };
@@ -201,24 +202,33 @@ export default function OrderDetailPage() {
                 {order.priority}
               </span>
             </div>
-            {!editing && order.status !== "ABGESCHLOSSEN" && (
-              <button
-                onClick={() => {
-                  setEditForm({
-                    article: order.article,
-                    quantity: String(order.quantity),
-                    priority: order.priority,
-                    department_id: order.department_id ? String(order.department_id) : "",
-                    assigned_to: order.assigned_to ? String(order.assigned_to) : "",
-                    due_date: order.due_date ? order.due_date.split("T")[0] : "",
-                  });
-                  setEditing(true);
-                }}
-                className="px-4 py-2 text-sm bg-gray-200 rounded hover:bg-gray-300"
+            <div className="flex gap-2">
+              <a
+                href={exportOrderPdfUrl(orderId)}
+                className="px-4 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700"
+                download
               >
-                Bearbeiten
-              </button>
-            )}
+                📄 PDF
+              </a>
+              {!editing && order.status !== "ABGESCHLOSSEN" && (
+                <button
+                  onClick={() => {
+                    setEditForm({
+                      article: order.article,
+                      quantity: String(order.quantity),
+                      priority: order.priority,
+                      department_id: order.department_id ? String(order.department_id) : "",
+                      assigned_to: order.assigned_to ? String(order.assigned_to) : "",
+                      due_date: order.due_date ? order.due_date.split("T")[0] : "",
+                    });
+                    setEditing(true);
+                  }}
+                  className="px-4 py-2 text-sm bg-gray-200 rounded hover:bg-gray-300"
+                >
+                  Bearbeiten
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Workflow Progress Bar */}
@@ -378,7 +388,7 @@ export default function OrderDetailPage() {
                   <p className="text-sm text-gray-400">Noch keine Einträge.</p>
                 ) : (
                   <div className="space-y-0">
-                    {order.history.map((h, i) => {
+                    {order.history.map((h: HistoryEntry, i: number) => {
                       const detail = parseDetail(h.detail);
                       return (
                         <div key={h.id} className="flex gap-3">
@@ -395,22 +405,22 @@ export default function OrderDetailPage() {
                               <span className="text-sm font-medium text-gray-900">
                                 {ACTION_LABELS[h.action] || h.action}
                               </span>
-                              {h.username && (
+                              {h.username ? (
                                 <span className="text-xs text-gray-500">von {h.username}</span>
-                              )}
+                              ) : null}
                               <span className="text-xs text-gray-400 ml-auto">
                                 {formatDate(h.created_at)}
                               </span>
                             </div>
-                            {detail && (
+                            {detail ? (
                               <div className="text-xs text-gray-600 mt-0.5">
                                 {detail.from && detail.to && (
-                                  <span>{STATUS_LABELS[detail.from as string] || detail.from} → {STATUS_LABELS[detail.to as string] || detail.to}</span>
+                                  <span>{STATUS_LABELS[detail.from] || detail.from} → {STATUS_LABELS[detail.to] || detail.to}</span>
                                 )}
-                                {detail.comment && <span className="block">"{detail.comment}"</span>}
-                                {detail.article && !detail.from && <span>Artikel: {detail.article as string}</span>}
+                                {detail.comment && <span className="block">&quot;{detail.comment}&quot;</span>}
+                                {detail.article && !detail.from && <span>Artikel: {detail.article}</span>}
                               </div>
-                            )}
+                            ) : null}
                           </div>
                         </div>
                       );

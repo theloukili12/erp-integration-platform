@@ -7,6 +7,9 @@ import {
   getDepartments,
   exportOrdersCsvUrl,
   exportAuditCsvUrl,
+  exportCompanyPdfUrl,
+  exportDepartmentPdfUrl,
+  exportOrdersListPdfUrl,
 } from "@/lib/api";
 import { AuthGuard } from "@/lib/auth-guard";
 
@@ -317,7 +320,51 @@ export default function ReportsPage() {
 
           {/* Export Tab */}
           {tab === "export" && (
-            <div className="bg-white rounded-xl shadow-sm p-6 max-w-lg">
+            <div className="space-y-6 max-w-lg">
+            <div className="bg-white rounded-xl shadow-sm p-6">
+              <h3 className="font-semibold text-gray-900 mb-4">PDF-Berichte herunterladen</h3>
+              <div className="space-y-4">
+                <div className="p-4 border rounded-lg hover:bg-gray-50">
+                  <h4 className="font-medium text-gray-900">Unternehmens-Report</h4>
+                  <p className="text-xs text-gray-500 mb-2">Kompletter Bericht mit KPIs, Statusverteilung, Abteilungsauslastung</p>
+                  <a
+                    href={exportCompanyPdfUrl()}
+                    className="inline-block px-4 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700"
+                    download
+                  >
+                    📄 PDF herunterladen
+                  </a>
+                </div>
+                <div className="p-4 border rounded-lg hover:bg-gray-50">
+                  <h4 className="font-medium text-gray-900">Abteilungsberichte</h4>
+                  <p className="text-xs text-gray-500 mb-2">Einzelbericht pro Abteilung mit Fehlerquote, Liefertreue, Durchlaufzeit</p>
+                  <div className="flex gap-2 flex-wrap">
+                    {deptReports.map((r) => (
+                      <a
+                        key={r.department.id}
+                        href={exportDepartmentPdfUrl(r.department.id)}
+                        className="inline-block px-3 py-1.5 text-xs bg-red-50 text-red-700 border border-red-200 rounded hover:bg-red-100"
+                        download
+                      >
+                        📄 {r.department.name}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+                <div className="p-4 border rounded-lg hover:bg-gray-50">
+                  <h4 className="font-medium text-gray-900">Auftragsliste (PDF)</h4>
+                  <p className="text-xs text-gray-500 mb-2">Alle Aufträge als tabellarische PDF-Übersicht</p>
+                  <a
+                    href={exportOrdersListPdfUrl()}
+                    className="inline-block px-4 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700"
+                    download
+                  >
+                    📄 PDF herunterladen
+                  </a>
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm p-6">
               <h3 className="font-semibold text-gray-900 mb-4">Daten exportieren (CSV)</h3>
               <div className="space-y-4">
                 <div className="p-4 border rounded-lg hover:bg-gray-50">
@@ -370,6 +417,7 @@ export default function ReportsPage() {
                   </a>
                 </div>
               </div>
+            </div>
             </div>
           )}
         </div>

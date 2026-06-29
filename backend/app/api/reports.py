@@ -12,6 +12,12 @@ from app.database import get_db
 from app.models.audit import AuditLog
 from app.models.production_order import ProductionOrder
 from app.models.rbac import Department, User
+from app.services.pdf_report import (
+    generate_company_report_pdf,
+    generate_department_report_pdf,
+    generate_order_detail_pdf,
+    generate_orders_list_pdf,
+)
 
 router = APIRouter(prefix="/reports", tags=["Reports"])
 
@@ -282,5 +288,96 @@ def export_audit_csv(
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+# ── PDF Export ───────────────────────────────────────────────────────────
+
+@router.get("/pdf/company")
+def export_company_pdf(db: Session = Depends(get_db)):
+    """Generate company-wide KPI report as PDF."""
+    data = company_kpis(db)
+    buf = generate_company_report_pdf(data)
+    filename = f"unternehmens_report_{datetime.utcnow().strftime('%Y%m%d_%H%M')}.pdf"
+    return StreamingResponse(
+        buf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@router.get("/pdf/department/{department_id}")
+def export_department_pdf(department_id: int, db: Session = Depends(get_db)):
+    """Generate department report as PDF."""
+    data = department_report(department_id, db)
+    if isinstance(data, dict) and "error" in data:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Department not found")
+    buf = generate_department_report_pdf(data)
+    dept_name = data["department"]["name"].lower().replace(" ", "_")
+    filename = f"abteilung_{dept_name}_{datetime.utcnow().strftime('%Y%m%d_%H%M')}.pdf"
+    return StreamingResponse(
+        buf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@router.get("/pdf/order/{order_id}")
+def export_order_pdf(order_id: int, db: Session = Depends(get_db)):
+    """Generate single order detail report as PDF."""
+    from fastapi import HTTPException
+    order = db.query(ProductionOrder).filter(ProductionOrder.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    dept_name = ""
+    if order.department_id:
+        dept = db.query(Department).filter(Department.id == order.department_id).first()
+        dept_name = dept.name if dept else ""
+
+    assignee_name = ""
+    if order.assigned_to:
+        user = db.query(User).filter(User.id == order.assigned_to).first()
+        assignee_name = user.full_name if user else ""
+
+    history = (
+        db.query(AuditLog)
+        .filter(AuditLog.resource == "order", AuditLog.resource_id == str(order_id))
+        .order_by(AuditLog.created_at.asc())
+        .all()
+    )
+
+    buf = generate_order_detail_pdf(order, dept_name, assignee_name, history)
+    filename = f"auftrag_{order.order_number}_{datetime.utcnow().strftime('%Y%m%d_%H%M')}.pdf"
+    return StreamingResponse(
+        buf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@router.get("/pdf/orders")
+def export_orders_list_pdf_endpoint(
+    status: str | None = Query(None),
+    department_id: int | None = Query(None),
+    db: Session = Depends(get_db),
+):
+    """Generate full orders list as PDF."""
+    query = db.query(ProductionOrder)
+    if status:
+        query = query.filter(ProductionOrder.status == status)
+    if department_id is not None:
+        query = query.filter(ProductionOrder.department_id == department_id)
+
+    orders = query.order_by(ProductionOrder.created_at.desc()).all()
+    depts = {d.id: d.name for d in db.query(Department).all()}
+
+    buf = generate_orders_list_pdf(orders, depts)
+    filename = f"auftragsliste_{datetime.utcnow().strftime('%Y%m%d_%H%M')}.pdf"
+    return StreamingResponse(
+        buf,
+        media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
