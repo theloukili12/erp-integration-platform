@@ -20,13 +20,21 @@ export default async function Home() {
 
   return (
     <main className="min-h-screen bg-gray-50 p-8">
-      <section>
-        <h1 className="text-3xl font-bold text-gray-900">
-          Manufacturing Data Platform
-        </h1>
-        <p className="mt-2 text-gray-600">
-          ERP Integration & Production Order Dashboard
-        </p>
+      <section className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">
+            Manufacturing Data Platform
+          </h1>
+          <p className="mt-2 text-gray-600">
+            ERP Integration & Production Order Dashboard
+          </p>
+        </div>
+        <a
+          href="/admin"
+          className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+        >
+          Admin Panel
+        </a>
       </section>
 
       <section className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-5">
